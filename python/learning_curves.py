@@ -172,30 +172,6 @@ def run(n_iter, n_sizes, n_test, n_val, data_type, data_descs, methods,
             key += 1
             data_params = generate_params(**data_desc, random_state=it)
 
-            # if compute_br:
-            #     if data_type in ['MCAR', 'MAR_logistic']:
-            #         methods.append(
-            #             {'name': 'BayesPredictor',
-            #              'est': BayesPredictor_MCAR_MAR,
-            #              'data_params': data_param}
-            #         )
-
-            #     elif (data_type in ['selfmasking'] and
-            #           data_param[1] == 'gaussian'):
-            #         methods.append(
-            #             {'name': 'BayesPredictor',
-            #              'est': BayesPredictor_gaussian_selfmasking,
-            #              'data_params': data_param}
-            #         )
-            #     else:
-            #         raise ValueError('Bayes rate cannot be computed for' +
-            #                          'data_type {}'.format(data_type))
-
-            #     br_item = ResultItem(
-            #         key=key, method='BayesRate', train_test='test', n=np.nan,
-            #         mse=br['mse'], r2=br['r2'])
-            #     bayes_rates.append(br_item)
-
             n_tot = [n_train + n_test + n_val for n_train in n_sizes]
             gen = generate_data(n_tot, data_params, random_state=it)
             data_generators.append(
@@ -221,13 +197,4 @@ def run(n_iter, n_sizes, n_test, n_val, data_type, data_descs, methods,
 
     # Merge the description and results dataframes
     scores = data_descs.join(results, how='outer')
-
-    # if compute_br:
-    #     results_br = pd.DataFrame(bayes_rates)
-    #     results_br = results_br.set_index('key')
-    #     scores_br = data_descs.join(results_br, how='outer')
-    #     scores = pd.concat([scores_meth, scores_br], axis=0, sort=False)
-    # else:
-    #     scores = scores_meth
-
     scores.to_csv('../results/' + filename + '.csv')
