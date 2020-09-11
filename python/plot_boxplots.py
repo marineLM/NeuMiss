@@ -34,14 +34,22 @@ if __name__ == '__main__':
     plt.rcParams['ytick.major.size'] = 2
     plt.rcParams['xtick.major.size'] = 2
 
+    # Uncomment the option you want to choose
+    option = 'shared_scale'
+    # option = 'adapted_scale'
+
     for data_type in ['MCAR', 'MAR_logistic', 'gaussian_sm', 'probit_sm']:
 
         scores = pd.read_csv(f'../results/' + data_type + '.csv', index_col=0)
 
         # Separate Bayes rate from other methods performances
         if data_type not in ['probit_sm']:
-            br = scores.query('method == "BayesRate"')
-            scores = scores.query('method != "BayesRate"')
+            # option 1
+            # br = scores.query('method == "BayesRate"')
+            # scores = scores.query('method != "BayesRate"')
+            # option 2
+            br = scores.query('method == "BayesPredictor"')
+            scores = scores.query('method != "BayesPredictor"')
 
         # Differentiate Neumann and Neumann res es
         res = scores.residual_connection.fillna(False)
@@ -72,13 +80,41 @@ if __name__ == '__main__':
             data = scores.query('n_features == @p')
 
             # Compute the performances ajusted for the Bayes rate
-            if data_type not in ['probit_sm']:
-                for it in data.iter.unique():
-                    br_it = br.loc[
-                        (br.iter == it) & (br.n_features == p), 'r2']
-                    br_it = float(br_it)
-                    data.loc[data.iter == it, 'r2'] = (
-                        np.minimum(data.loc[data.iter == it, 'r2'] - br_it, 0))
+            # option 1: the Bayes rate is computed once per iteration and per p
+            # (whatever n)
+            # if data_type not in ['probit_sm']:
+            #     for it in data.iter.unique():
+            #         br_it = br.loc[
+            #             (br.iter == it) & (br.n_features == p), 'r2']
+            #         br_it = float(br_it)
+            #         data.loc[data.iter == it, 'r2'] = (
+            #             np.minimum(data.loc[data.iter == it, 'r2'] - br_it, 0))
+
+            # option 2: the Bayes Predictor is just another method , and is
+            # computed for each iter, n and p.
+            for it in data.iter.unique():
+                for n in data.n.unique():
+                    for split in data.train_test.unique():
+                        if data_type not in ['probit_sm']:
+                            mask_br = ((br.n_features == p) & (br.iter == it) &
+                                       (br.n == n) & (br.train_test == split))
+                            br_val = br.loc[mask_br, 'r2']
+                            br_val = float(br_val)
+                            mask_data = ((data.n_features == p) &
+                                         (data.iter == it) & (data.n == n) &
+                                         (data.train_test == split))
+                            data.loc[mask_data, 'r2'] = (
+                                data.loc[mask_data, 'r2'] - br_val)
+                        else:
+                            mask_data = ((data.n_features == p) &
+                                         (data.iter == it) & (data.n == n) &
+                                         (data.train_test == split))
+                            # constant added so that the scores are not too
+                            # close to 0, otherwise the plot in logscale is
+                            # difficult to read.
+                            best_r2 = data.loc[mask_data, 'r2'].max()
+                            data.loc[mask_data, 'r2'] = np.minimum(
+                                -1e-3, data.loc[mask_data, 'r2'] - best_r2)
 
             if p >= 50:
                 # EM failed over dim 50
@@ -135,21 +171,31 @@ if __name__ == '__main__':
 
                 if data_type not in ['MCAR', 'MAR_logistic']:
                     ax.set_xscale('symlog', linthreshx=.002)
-                    xmin, xmax = ax.get_xlim()
-                    xmin = max(xmin, -1.05)
-                    xmax = min(xmax, .000001)
-                    ax.set_xlim(xmin, xmax)
-                    if (xmin < -.2) and (xmax < -.05):
-                        xticks = (-.2, -.1)
-                    elif (xmin < -.1) and (xmax < -.02):
-                        xticks = (-.1, -.05)
-                    elif (xmin < -.1) and (xmax < -.01):
-                        xticks = (-.1, -.02)
-                    elif (xmin < -.1) and (xmax < -.001):
-                        xticks = (-.1, -.01)
-                    else:
-                        xticks = (-.1, -.01, -.001)
-                    ax.set_xticks(xticks)
+
+                    if option == 'adapted_scale':
+                        xmin, xmax = ax.get_xlim()
+                        xmin = max(xmin, -1.05)
+                        xmax = min(xmax, -0.00101)
+                        ax.set_xlim(xmin, xmax)
+                        if (xmin < -.2) and (xmax < -.05):
+                            xticks = (-.2, -.1)
+                        elif (xmin < -.1) and (xmax < -.02):
+                            xticks = (-.1, -.05)
+                        elif (xmin < -.1) and (xmax < -.01):
+                            xticks = (-.1, -.02)
+                        elif (xmin < -.1) and (xmax < -.001):
+                            xticks = (-.1, -.01)
+                        else:
+                            xticks = (-.1, -.01, -.001)
+                        ax.set_xticks(xticks)
+                    elif option == 'shared_scale':
+                        if data_type == 'gaussian_sm':
+                            ax.set_xlim(-0.5, -0.0025)
+                            xticks = (-.1, -.01)
+                        elif data_type == 'probit_sm':
+                            ax.set_xlim(-0.5, -0.00101)
+                            xticks = (-.1, -.01)
+                        ax.set_xticks(xticks)
 
                     def fmt_flt(x):
                         if x <= -.1:
@@ -160,17 +206,31 @@ if __name__ == '__main__':
                             return '%.2f' % x
                         else:
                             return '%.3f' % x
-
                     ax.set_xticklabels([fmt_flt(t) for t in xticks])
-                else:
-                    xmin, xmax = ax.get_xlim()
-                    if data_type in ['MAR_logistic']:
-                        if n == 20000 and p == 10:
+
+                elif data_type in ['MAR_logistic']:
+                    if option == 'adapted_scale':
+                        xmin, xmax = ax.get_xlim()
+                        if p == 10 and n == 100000:
                             xmin = max(xmin, -0.15)
-                        else:
-                            xmin = max(xmin, -1.05)
-                        xmax = max(xmax, .01)
-                    ax.set_xlim(xmin, xmax=min(xmax, .000001))
+                            xmax = max(xmax, .001)
+                        elif p == 10 and n == 20000:
+                            xmin = max(xmin, -0.12)
+                            xmax = max(xmax, .001)
+                        ax.set_xlim(xmin, xmax=min(xmax, .000001))
+                    elif option == 'shared_scale':
+                        ax.set_xlim(-0.15, xmax=.000001)
+                        ax.set_xticks((0, -.05, -.1))
+
+                elif data_type in ['MCAR']:
+                    if option == 'adapted_scale':
+                        xmin, xmax = ax.get_xlim()
+                        if n == 100000 and p == 10:
+                            xmin = max(xmin, -0.095)
+                            ax.set_xlim(xmin, xmax=min(xmax, .000001))
+                    elif option == 'shared_scale':
+                        ax.set_xlim(-0.195, xmax=.000001)
+                        ax.set_xticks((0, -.1,))
 
                 if j == 0:
                     plt.text(-.31, .85, 'd=%i' % p, ha='right',
@@ -186,7 +246,7 @@ if __name__ == '__main__':
 
         plt.subplots_adjust(left=.225, bottom=.1, right=.965, top=.95,
                             wspace=.1, hspace=.25)
-        plt.savefig('../figures/boxplot_{}.pdf'.format(data_type),
+        plt.savefig('../figures/boxplot_{}_{}.pdf'.format(data_type, option),
                     edgecolor='none', facecolor='none', dpi=100)
 
         plt.close()

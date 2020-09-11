@@ -24,8 +24,8 @@ def plot_one(ax, data):
     # Set axes
     ax.set_xlabel('Number of parameters')
     ax.set_ylabel('{} score - Bayes rate'.format('R2'))
-    #ax.grid(True)
-    #sns.despine()
+    # ax.grid(True)
+    # sns.despine()
 
     ax.set_ylim(-.115, 0)
     ax.set_xscale('log')
@@ -33,18 +33,9 @@ def plot_one(ax, data):
     ax.set_xlim(xmin=scores['n_params'].min(), xmax=4e4)
 
     # Plot a text giving the method
-    plt.text(2e3, -.093, 'MLP Deep',
-                color='C0',
-                ha='left',
-                va='top')
-    plt.text(3.8e4, -.0525, 'MLP Wide',
-                color='C1',
-                ha='right',
-                va='bottom')
-    plt.text(1600, -.009, 'Neumann',
-                color='C2',
-                ha='right',
-                va='top')
+    plt.text(2e3, -.093, 'MLP Deep', color='C0', ha='left', va='top')
+    plt.text(3.8e4, -.0525, 'MLP Wide', color='C1', ha='right', va='bottom')
+    plt.text(1600, -.009, 'Neumann', color='C2', ha='right', va='top')
 
     # Second legend for train vs test
     line1 = mlines.Line2D([], [], color='k', linestyle='-', label='Test set')
@@ -91,24 +82,24 @@ def n_params_func(df):
 
 if __name__ == '__main__':
 
-    scores = pd.read_csv('../results/mixture1_depth_effect.csv', index_col=0)
+    scores = pd.read_csv('../results/MCAR_depth_effect.csv', index_col=0)
 
     # Separate Bayes rate from other methods performances
     br = scores.query('method == "BayesRate"')
     scores = scores.query('method != "BayesRate"')
 
     # Differentiate Neumann and Neumann flex and Neumann res
-    flex = scores.flex.fillna(False)
+    es = scores.early_stopping.fillna(False)
     res = scores.residual_connection.fillna(False)
     neu = (scores.method == 'Neumann')
 
-    ind_flex_res = (neu) & (flex) & (res)
-    ind_flex = (neu) & (flex) & (~res)
-    ind_res = (neu) & (~flex) & (res)
+    ind_es_res = (neu) & (es) & (res)
+    ind_es = (neu) & (es) & (~res)
+    ind_res = (neu) & (~es) & (res)
 
-    scores.loc[ind_flex, 'method'] = 'Neumann_flex'
+    scores.loc[ind_es, 'method'] = 'Neumann_es'
     scores.loc[ind_res, 'method'] = 'Neumann_res'
-    scores.loc[ind_flex_res, 'method'] = 'Neumann_flex_res'
+    scores.loc[ind_es_res, 'method'] = 'Neumann_es_res'
 
     # Differentiate shallow and deep MLP
     scores.loc[scores.duplicated(), 'method'] = 'MLP_shallow'
@@ -117,7 +108,7 @@ if __name__ == '__main__':
 
     # Choose the methods to be plotted
     methods = ['MLP_shallow', 'MLP_deep', 'Neumann',
-                #'Neumann_flex', 'Neumann_res', 'Neumann_flex_res'
+               # 'Neumann_es', 'Neumann_res', 'Neumann_es_res'
                ]
     scores = scores.query('method in @methods')
 
@@ -139,37 +130,33 @@ if __name__ == '__main__':
     fig, ax = plt.subplots(1, 1, figsize=(4.3, 2))
     plot_one(ax, scores)
 
-
-    scores_deep_test = scores.query('(train_test == "test") '
-            '& ((method == "MLP_deep") | (method == "Neumann"))')
+    scores_deep_test = scores.query('(train_test == "test") &'
+                                    '((method == "MLP_deep") |'
+                                    '(method == "Neumann"))')
     scores_deep_test = scores_deep_test.groupby(['method', 'depth']).median()
     scores_deep_test = scores_deep_test.reset_index()
-    plt.scatter(scores_deep_test['n_params'],
-            scores_deep_test['r2'],
-            #c=scores_test['experiment'].map(colors),
-            color='.6',
-            s=3*(scores_deep_test['depth'] + 1),
-            ec='k', linewidth=.5)
+    plt.scatter(
+        scores_deep_test['n_params'],  scores_deep_test['r2'],
+        # c=scores_test['experiment'].map(colors),
+        color='.6', s=3*(scores_deep_test['depth'] + 1), ec='k',
+        linewidth=.5)
 
-    scores_width_test = scores.query('(train_test == "test") '
-            '& (method == "MLP_shallow")')
+    scores_width_test = scores.query(
+        '(train_test == "test") & (method == "MLP_shallow")')
     scores_width_test = scores_width_test.groupby(['method', 'width']).median()
     scores_width_test = scores_width_test.reset_index()
-    plt.scatter(scores_width_test['n_params'],
-            scores_width_test['r2'],
-            #c=scores_test['experiment'].map(colors),
-            color='C1',
-            s=3*(scores_width_test['width']),
-            ec='k', linewidth=.5)
+    plt.scatter(
+        scores_width_test['n_params'], scores_width_test['r2'],
+        # c=scores_test['experiment'].map(colors),
+        color='C1', s=3*(scores_width_test['width']), ec='k', linewidth=.5)
 
     # Add a legend for the disks
-    legend_points = [
-                    plt.scatter([], [],
-                            s=3*(i + 1), marker='o',linewidth=.5,
-                            edgecolor='k', facecolors='.6',
-                            label='%i' % int(i))
-                    for i in range(1, int(scores_deep_test['depth'].max() + 1),
-                                    2)]
+    max_depth = int(scores_deep_test['depth'].max() + 1)
+    legend_points = [plt.scatter([], [], s=3*(i + 1), marker='o', linewidth=.5,
+                                 edgecolor='k', facecolors='.6',
+                                 label='%i' % int(i))
+                     for i in range(1, max_depth, 2)]
+
     l = plt.legend(handles=legend_points, scatterpoints=1,
                    title='Network\ndepth',
                    handlelength=1, handletextpad=.1,
@@ -177,18 +164,13 @@ if __name__ == '__main__':
     ax.add_artist(l)
 
     # Add a legend for the disks
-    legend_points = [
-                    plt.scatter([], [],
-                            s=3*(i + 1), marker='o',linewidth=.5,
-                            edgecolor='k', facecolors='C1',
-                            label='%i$\,d$' % int(i))
-                    for i in [1, 3, 10, 30, 50]]
-    plt.legend(handles=legend_points, scatterpoints=1,
-                title='width',
-                handlelength=1, handletextpad=.2,
-                borderpad=.3, fontsize=9, loc=(1.23, .0), frameon=False)
-
-
+    legend_points = [plt.scatter([], [], s=3*(i + 1), marker='o',linewidth=.5,
+                                 edgecolor='k', facecolors='C1',
+                                 label='%i$\,d$' % int(i))
+                     for i in [1, 3, 10, 30, 50]]
+    plt.legend(handles=legend_points, scatterpoints=1, title='width',
+               handlelength=1, handletextpad=.2,
+               borderpad=.3, fontsize=9, loc=(1.23, .0), frameon=False)
 
     plt.subplots_adjust(left=.17, bottom=.22, right=.75, top=.97)
     plt.savefig('../figures/depth_effect.pdf',

@@ -3,7 +3,8 @@ import numpy as np
 from collections import namedtuple
 from ground_truth import gen_params, gen_data,\
                          gen_params_selfmasking, gen_data_selfmasking,\
-                         bayes_rate_monte_carlo
+                         BayesPredictor_gaussian_selfmasking,\
+                         BayesPredictor_MCAR_MAR
 
 from joblib import Memory, Parallel, delayed
 location = './cachedir'
@@ -79,7 +80,11 @@ def run_one(X, y, est, params, method, n_test, n_val):
 def get_results(key, g, methods, n_test, n_val):
 
     result_iter = []
-    for X, y in g:
+
+    gen = g['gen']
+    data_params = g['data_params']
+
+    for X, y in gen:
         n, p = X.shape
 
         for est_params in methods:
@@ -105,12 +110,18 @@ def get_results(key, g, methods, n_test, n_val):
                 hidden_layer_sizes = [n_shallow]*d
                 params['hidden_layer_sizes'] = hidden_layer_sizes
 
+            if method == 'BayesPredictor':
+                params['data_params'] = data_params
+
             new_score = run_one(X, y, est, params, method, n_test, n_val)
 
             if method == 'torchMLP':
                 params = est_params.copy()
                 params.pop('est')
                 params.pop('name')
+
+            if method == 'BayesPredictor':
+                params.pop('data_params')
 
             res_train = ResultItem(key=key, method=method, train_test="train",
                                    n=n-n_test-n_val, **new_score["train"],
@@ -138,10 +149,19 @@ def run(n_iter, n_sizes, n_test, n_val, data_type, data_descs, methods,
         generate_data = gen_data
 
     if compute_br:
-        bayes_rates = []
+        if data_type in ['MCAR', 'MAR_logistic']:
+            methods.append({'name': 'BayesPredictor',
+                            'est': BayesPredictor_MCAR_MAR})
+
+        elif (data_type in ['selfmasking'] and filename == 'gaussian_sm'):
+            methods.append({'name': 'BayesPredictor',
+                            'est': BayesPredictor_gaussian_selfmasking})
+        else:
+            raise ValueError('Bayes rate cannot be computed for' +
+                             'data_type {}'.format(filename))
 
     # data_generators will contain the list of generators for each data
-    # description
+    # description, as well as the data parameters.
     data_generators = []
     key = -1
     for data_desc in data_descs.itertuples(index=False):
@@ -150,23 +170,36 @@ def run(n_iter, n_sizes, n_test, n_val, data_type, data_descs, methods,
         for it in range(n_iter):
 
             key += 1
-            data_param = generate_params(**data_desc, random_state=it)
+            data_params = generate_params(**data_desc, random_state=it)
 
-            if compute_br:
-                if data_type in ['MCAR', 'MAR_logistic', 'selfmasking']:
-                    br = bayes_rate_monte_carlo(data_type, data_param)
-                else:
-                    raise ValueError('Bayes rate cannot be computed for' +
-                                     'data_type {}'.format(data_type))
+            # if compute_br:
+            #     if data_type in ['MCAR', 'MAR_logistic']:
+            #         methods.append(
+            #             {'name': 'BayesPredictor',
+            #              'est': BayesPredictor_MCAR_MAR,
+            #              'data_params': data_param}
+            #         )
 
-                br_item = ResultItem(
-                    key=key, method='BayesRate', train_test='test', n=np.nan,
-                    mse=br['mse'], r2=br['r2'])
-                bayes_rates.append(br_item)
+            #     elif (data_type in ['selfmasking'] and
+            #           data_param[1] == 'gaussian'):
+            #         methods.append(
+            #             {'name': 'BayesPredictor',
+            #              'est': BayesPredictor_gaussian_selfmasking,
+            #              'data_params': data_param}
+            #         )
+            #     else:
+            #         raise ValueError('Bayes rate cannot be computed for' +
+            #                          'data_type {}'.format(data_type))
+
+            #     br_item = ResultItem(
+            #         key=key, method='BayesRate', train_test='test', n=np.nan,
+            #         mse=br['mse'], r2=br['r2'])
+            #     bayes_rates.append(br_item)
 
             n_tot = [n_train + n_test + n_val for n_train in n_sizes]
-            gen = generate_data(n_tot, data_param, random_state=it)
-            data_generators.append(gen)
+            gen = generate_data(n_tot, data_params, random_state=it)
+            data_generators.append(
+                {'gen': list(gen), 'data_params': data_params})
 
     # Update data_descs so that the iteration ID is taken into account,
     # and add a key column to be able to merge the description dataframe with
@@ -179,7 +212,7 @@ def run(n_iter, n_sizes, n_test, n_val, data_type, data_descs, methods,
 
     # Compute the results
     results = Parallel(n_jobs=n_jobs)(
-        delayed(get_results)(key, list(g), methods, n_test, n_val)
+        delayed(get_results)(key, g, methods, n_test, n_val)
         for key, g in enumerate(data_generators)
     )
     results = [item for result_iter in results for item in result_iter]
@@ -187,14 +220,14 @@ def run(n_iter, n_sizes, n_test, n_val, data_type, data_descs, methods,
     results = results.set_index('key')
 
     # Merge the description and results dataframes
-    scores_meth = data_descs.join(results, how='outer')
+    scores = data_descs.join(results, how='outer')
 
-    if compute_br:
-        results_br = pd.DataFrame(bayes_rates)
-        results_br = results_br.set_index('key')
-        scores_br = data_descs.join(results_br, how='outer')
-        scores = pd.concat([scores_meth, scores_br], axis=0, sort=False)
-    else:
-        scores = scores_meth
+    # if compute_br:
+    #     results_br = pd.DataFrame(bayes_rates)
+    #     results_br = results_br.set_index('key')
+    #     scores_br = data_descs.join(results_br, how='outer')
+    #     scores = pd.concat([scores_meth, scores_br], axis=0, sort=False)
+    # else:
+    #     scores = scores_meth
 
     scores.to_csv('../results/' + filename + '.csv')

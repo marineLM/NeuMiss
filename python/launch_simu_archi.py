@@ -1,7 +1,7 @@
 import numpy as np
-from neumannS0_mlp import Neumann2_mlp
-from ground_truth import gen_params_mixture_scaledup, gen_data_mixture_scaledup
-from ground_truth import bayes_rate_monte_carlo
+from neumannS0_mlp import Neumann_mlp
+from ground_truth import gen_params, gen_data
+from ground_truth import BayesPredictor_MCAR_MAR
 import pandas as pd
 from collections import namedtuple
 
@@ -39,7 +39,8 @@ def bayes_approx_Neumann(sigma, mu, beta, X, depth, typ='mcar', k=None,
                 sigma_obs_inv = np.eye(n_obs)
 
             for i in range(1, depth+1):
-                sigma_obs_inv = (np.eye(n_obs) - sigma_obs).dot(sigma_obs_inv) + np.eye(n_obs)
+                sigma_obs_inv = (np.eye(n_obs) - sigma_obs).dot(
+                    sigma_obs_inv) + np.eye(n_obs)
 
             # To counterbalance the fact that we divided sigma by L
             if len(obs) > 0:
@@ -48,10 +49,12 @@ def bayes_approx_Neumann(sigma, mu, beta, X, depth, typ='mcar', k=None,
             sigma_obs_inv = np.linalg.inv(sigma_obs)
 
         if typ == 'mcar':
-            E_x_mis = mu[mis] + sigma_mis_obs.dot(sigma_obs_inv).dot(x[obs] - mu[obs])
+            E_x_mis = mu[mis] + sigma_mis_obs.dot(
+                sigma_obs_inv).dot(x[obs] - mu[obs])
         elif typ == 'gm':
             sigma_mis = sigma[np.ix_(mis, mis)]
-            sigma_misobs = sigma_mis - sigma_mis_obs.dot(sigma_obs_inv).dot(sigma_mis_obs.T)
+            sigma_misobs = sigma_mis - sigma_mis_obs.dot(
+                sigma_obs_inv).dot(sigma_mis_obs.T)
             sigma_misobs_inv = np.linalg.inv(sigma_misobs)
             D_mis = np.diag(tsigma2[mis])
             A = D_mis.dot(sigma_misobs_inv)
@@ -63,24 +66,24 @@ def bayes_approx_Neumann(sigma, mu, beta, X, depth, typ='mcar', k=None,
 
             # Identity approx
             if gm_approx == 'Id':
-                E_x_mis = 0.5*(tmu[mis] + mu[mis] + sigma_mis_obs.dot(sigma_obs_inv).dot(x[obs] - mu[obs]))
+                E_x_mis = (0.5*(tmu[mis] + mu[mis] + sigma_mis_obs.dot(
+                    sigma_obs_inv).dot(x[obs] - mu[obs])))
 
             # alpha Id approx
             elif gm_approx == 'alphaId':
-                E_x_mis = 1/(1+alpha)*(tmu[mis] + alpha*(mu[mis] + sigma_mis_obs.dot(sigma_obs_inv).dot(x[obs] - mu[obs])))
+                E_x_mis = 1/(1+alpha)*(tmu[mis] + alpha*(
+                    mu[mis] + sigma_mis_obs.dot(sigma_obs_inv).dot(
+                        x[obs] - mu[obs])))
 
             # Diagonal matrix approx
             elif gm_approx == 'diagonal':
-                E_x_mis = D_A_inv.dot(tmu[mis]) + mu[mis] + sigma_mis_obs.dot(sigma_obs_inv).dot(x[obs] - mu[obs])
-
-            # (I + A)^{-1} = A^{-1} approx
-            # tog = np.arange(len(x))
-            # mu_prime = sigma[np.ix_(tog, mis)].dot(np.linalg.inv(D_mis)).dot(tmu[mis]) + mu
-            # E_x_mis = mu_prime[mis] + sigma_mis_obs.dot(sigma_obs_inv).dot(x[obs] - mu_prime[obs])
+                E_x_mis = D_A_inv.dot(tmu[mis]) + mu[mis] + sigma_mis_obs.dot(
+                    sigma_obs_inv).dot(x[obs] - mu[obs])
 
             # No approx
             else:
-                E_x_mis = tmu[mis] + A.dot(mu[mis] + sigma_mis_obs.dot(sigma_obs_inv).dot(x[obs] - mu[obs]))
+                E_x_mis = tmu[mis] + A.dot(mu[mis] + sigma_mis_obs.dot(
+                    sigma_obs_inv).dot(x[obs] - mu[obs]))
                 E_x_mis = np.linalg.inv(np.eye(len(mis)) + A).dot(E_x_mis)
 
         predx = beta[0] + beta[mis+1].dot(E_x_mis) + beta[obs+1].dot(x[obs])
@@ -95,18 +98,20 @@ def get_score(pred, y):
     r2 = 1-mse/var
     return r2
 
+
 @memory.cache
 def run_one_iter(it, n_features):
     result_iter = []
 
     # Generate data
-    params = gen_params_mixture_scaledup(
-        n_features=n_features, n_comp=1, missing_rate=0.5, mean_separation=0.5,
-        prop_latent=0.5, snr=10, link='linear', random_state=it)
+    params = gen_params(
+        n_features=n_features, missing_rate=0.5, prop_latent=0.5, snr=10,
+        masking='MCAR', prop_for_masking=None, random_state=it)
 
-    n_features, ass, means, covs, beta, snr, missing_rate, link = params
+    (n_features, mean, cov, beta, sigma2_noise, masking, missing_rate,
+     prop_for_masking) = params
 
-    gen = gen_data_mixture_scaledup([120000], params, random_state=it)
+    gen = gen_data([120000], params, random_state=it)
     X, y = next(gen)
 
     X_test = X[0:n_test]
@@ -117,13 +122,12 @@ def run_one_iter(it, n_features):
     y_train = y[(n_test + n_val):]
 
     # Run Neumann with various depths, and with and without residual connection
-    for d in range(11):
+    for d in range(10):
         for res in [True, False]:
             print('Neumann d={}, res={}'.format(d, res))
-            est = Neumann2_mlp(
+            est = Neumann_mlp(
                 depth=d, n_epochs=100, batch_size=10, lr=1e-2/n_features,
-                flex=False, early_stopping=True, layerwise_pretraining=False,
-                residual_connection=res, mlp_depth=0)
+                early_stopping=True, residual_connection=res, verbose=False)
 
             est.fit(X_train, y_train, X_val=X_val, y_val=y_val)
 
@@ -147,15 +151,17 @@ def run_one_iter(it, n_features):
     # Run the Bayes predictor approximated with Neumann
     depths = [0, 1, 2, 3, 4, 5, 10, 15, 20, 30, 40, 50, 100]
     for d in depths:
-        pred = bayes_approx_Neumann(sigma=covs[0], mu=means[0], beta=beta,
+        pred = bayes_approx_Neumann(sigma=cov, mu=mean, beta=beta,
                                     X=X_test, depth=d)
         perf = get_score(pred, y_test)
         res = ResultItem(iter=it, method='Neumann_analytic', depth=d, r2=perf)
         result_iter.extend([res])
 
     # Compute the Bayes rate
-    br = bayes_rate_monte_carlo('mixture', params)
-    res = ResultItem(iter=it, method='Bayes_rate', r2=br['r2'])
+    bp = BayesPredictor_MCAR_MAR(params)
+    pred = bp.predict(X_test)
+    perf = get_score(pred, y_test)
+    res = ResultItem(iter=it, method='Bayes_rate', r2=perf)
     result_iter.extend([res])
 
     return result_iter

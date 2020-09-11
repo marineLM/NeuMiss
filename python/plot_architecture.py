@@ -41,7 +41,7 @@ def plot_one(ax, data):
 
 if __name__ == '__main__':
 
-    scores = pd.read_csv('../results/simu_architecture.csv', index_col=0)
+    scores = pd.read_csv('../results/simu_archi.csv', index_col=0)
 
     # Separate Bayes rate from other methods performances
     br = scores.query('method == "Bayes_rate"')
