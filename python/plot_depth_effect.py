@@ -35,14 +35,14 @@ def plot_one(ax, data):
     # Plot a text giving the method
     plt.text(2e3, -.093, 'MLP Deep', color='C0', ha='left', va='top')
     plt.text(3.8e4, -.0525, 'MLP Wide', color='C1', ha='right', va='bottom')
-    plt.text(1600, -.009, 'Neumann', color='C2', ha='right', va='top')
+    plt.text(1600, -.009, 'NeuMiss', color='C2', ha='right', va='top')
 
     # Second legend for train vs test
     line1 = mlines.Line2D([], [], color='k', linestyle='-', label='Test set')
     line2 = mlines.Line2D([], [], color='k', linestyle=':', label='Train set')
-    l = plt.legend(handles=[line1, line2], loc=(.57, .68),
-                   handlelength=1, handletextpad=.1)
-    ax.add_artist(l)
+    ll = plt.legend(handles=[line1, line2], loc=(.57, .68),
+                    handlelength=1, handletextpad=.1)
+    ax.add_artist(ll)
 
 
 def n_params_shallow_mlp(n_features, n_hidden_units):
@@ -85,21 +85,21 @@ if __name__ == '__main__':
     scores = pd.read_csv('../results/MCAR_depth_effect.csv', index_col=0)
 
     # Separate Bayes rate from other methods performances
-    br = scores.query('method == "BayesRate"')
-    scores = scores.query('method != "BayesRate"')
+    br = scores.query('method == "BayesPredictor"')
+    scores = scores.query('method != "BayesPredictor"')
 
-    # Differentiate Neumann and Neumann flex and Neumann res
-    es = scores.early_stopping.fillna(False)
+    # Differentiate Neumann and Neumann res es
     res = scores.residual_connection.fillna(False)
+    es = scores.early_stopping.fillna(False)
     neu = (scores.method == 'Neumann')
 
-    ind_es_res = (neu) & (es) & (res)
-    ind_es = (neu) & (es) & (~res)
-    ind_res = (neu) & (~es) & (res)
+    ind_res = (neu) & (res) & (~es)
+    ind_es = (neu) & (~res) & (es)
+    ind_res_es = (neu) & (res) & (es)
 
-    scores.loc[ind_es, 'method'] = 'Neumann_es'
     scores.loc[ind_res, 'method'] = 'Neumann_res'
-    scores.loc[ind_es_res, 'method'] = 'Neumann_es_res'
+    scores.loc[ind_es, 'method'] = 'Neumann_es'
+    scores.loc[ind_res_es, 'method'] = 'Neumann_res_es'
 
     # Differentiate shallow and deep MLP
     scores.loc[scores.duplicated(), 'method'] = 'MLP_shallow'
@@ -122,14 +122,17 @@ if __name__ == '__main__':
 
     # Normalize by the Bayes rate
     for it in scores.iter.unique():
-        br_it = br.loc[br.iter == it, 'r2']
-        br_it = float(br_it)
-        scores.loc[scores.iter == it, 'r2'] = (
-            scores.loc[scores.iter == it, 'r2'] - br_it)
+        for split in scores.train_test.unique():
+            mask_br = (br.iter == it) & (br.train_test == split)
+            br_val = br.loc[mask_br, 'r2']
+            br_val = float(br_val)
+            mask_data = (scores.iter == it) & (scores.train_test == split)
+            scores.loc[mask_data, 'r2'] = scores.loc[mask_data, 'r2'] - br_val
 
     fig, ax = plt.subplots(1, 1, figsize=(4.3, 2))
     plot_one(ax, scores)
 
+    # Plot the disks for deep methods
     scores_deep_test = scores.query('(train_test == "test") &'
                                     '((method == "MLP_deep") |'
                                     '(method == "Neumann"))')
@@ -141,6 +144,7 @@ if __name__ == '__main__':
         color='.6', s=3*(scores_deep_test['depth'] + 1), ec='k',
         linewidth=.5)
 
+    # Plot the disks for the wide method
     scores_width_test = scores.query(
         '(train_test == "test") & (method == "MLP_shallow")')
     scores_width_test = scores_width_test.groupby(['method', 'width']).median()
@@ -150,21 +154,21 @@ if __name__ == '__main__':
         # c=scores_test['experiment'].map(colors),
         color='C1', s=3*(scores_width_test['width']), ec='k', linewidth=.5)
 
-    # Add a legend for the disks
+    # Add a legend for the disks - deep methods
     max_depth = int(scores_deep_test['depth'].max() + 1)
     legend_points = [plt.scatter([], [], s=3*(i + 1), marker='o', linewidth=.5,
                                  edgecolor='k', facecolors='.6',
                                  label='%i' % int(i))
                      for i in range(1, max_depth, 2)]
 
-    l = plt.legend(handles=legend_points, scatterpoints=1,
-                   title='Network\ndepth',
-                   handlelength=1, handletextpad=.1,
-                   borderpad=.3, fontsize=9, loc=(1.0, .0), frameon=False)
-    ax.add_artist(l)
+    ll = plt.legend(handles=legend_points, scatterpoints=1,
+                    title='Network\ndepth',
+                    handlelength=1, handletextpad=.1,
+                    borderpad=.3, fontsize=9, loc=(1.0, .0), frameon=False)
+    ax.add_artist(ll)
 
-    # Add a legend for the disks
-    legend_points = [plt.scatter([], [], s=3*(i + 1), marker='o',linewidth=.5,
+    # Add a legend for the disks - wide method
+    legend_points = [plt.scatter([], [], s=3*(i + 1), marker='o', linewidth=.5,
                                  edgecolor='k', facecolors='C1',
                                  label='%i$\,d$' % int(i))
                      for i in [1, 3, 10, 30, 50]]

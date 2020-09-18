@@ -42,6 +42,9 @@ if __name__ == '__main__':
 
         scores = pd.read_csv(f'../results/' + data_type + '.csv', index_col=0)
 
+        # Keep results for n=2e4 and n=1e5
+        scores = scores.query('n!=10000')
+
         # Separate Bayes rate from other methods performances
         if data_type not in ['probit_sm']:
             # option 1
@@ -127,6 +130,7 @@ if __name__ == '__main__':
             'EMLR': 'EM',
             'MICELR': 'MICE + LR',
             'torchMLP': 'MLP',
+            'Neumann': 'NeuMiss'
             })
 
         scores_with_br['score'] = scores_with_br['r2']

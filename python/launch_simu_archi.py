@@ -159,10 +159,15 @@ def run_one_iter(it, n_features):
 
     # Compute the Bayes rate
     bp = BayesPredictor_MCAR_MAR(params)
-    pred = bp.predict(X_test)
-    perf = get_score(pred, y_test)
-    res = ResultItem(iter=it, method='Bayes_rate', r2=perf)
-    result_iter.extend([res])
+    pred_test = bp.predict(X_test)
+    perf_test = get_score(pred_test, y_test)
+    res_test = ResultItem(
+        iter=it, method='Bayes_rate', train_test="test", r2=perf)
+    pred_train = bp.predict(X_train)
+    perf_train = get_score(pred_train, y_train)
+    res_train = ResultItem(
+        iter=it, method='Bayes_rate', train_test="train", r2=perf)
+    result_iter.extend([res_train, res_test])
 
     return result_iter
 

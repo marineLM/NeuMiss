@@ -28,7 +28,7 @@ def plot_one(ax, data, is_legend=False):
     ax.grid(True)
 
     ax.set_xlim(0, 10)
-    ax.set_ylim(-0.05, 0.2)
+    ax.set_ylim(-0.25, 0.1)
     # axes[i].set_ylim(-0.05, 0.3)
 
 
@@ -41,10 +41,10 @@ if __name__ == '__main__':
 
         # Separate Bayes rate from other methods performances
         if data_type in ['MCAR']:
-            br = scores.query('method == "BayesRate"')
-            scores = scores.query('method != "BayesRate"')
+            br = scores.query('method == "BayesPredictor"')
+            scores = scores.query('method != "BayesPredictor"')
 
-        # Differentiate Neumann and Neumann flex
+        # Differentiate Neumann and Neumann res es
         res = scores.residual_connection.fillna(False)
         es = scores.early_stopping.fillna(False)
         neu = (scores.method == 'Neumann')
@@ -88,23 +88,33 @@ if __name__ == '__main__':
             data = scores.query('n_features == @p')
 
             # Compute the performances ajusted for the Bayes rate
-            if data_type in ['MCAR']:
-                for it in data.iter.unique():
-                    br_it = br.loc[(br.iter == it) & (br.n_features == p), 'r2']
-                    br_it = float(br_it)
-                    data.loc[data.iter == it, 'r2'] = (
-                        br_it - data.loc[data.iter == it, 'r2'])
+            for it in data.iter.unique():
+                for n in data.n.unique():
+                    for split in data.train_test.unique():
+                        if data_type not in ['probit_sm']:
+                            mask_br = (
+                                (br.n_features == p) & (br.iter == it) &
+                                (br.n == n) & (br.train_test == split))
+                            br_val = br.loc[mask_br, 'r2']
+                            br_val = float(br_val)
+                            mask_data = ((data.n_features == p) &
+                                         (data.iter == it) & (data.n == n) &
+                                         (data.train_test == split))
+                            data.loc[mask_data, 'r2'] = (
+                                data.loc[mask_data, 'r2'] - br_val)
+                        else:
+                            mask_data = ((data.n_features == p) &
+                                         (data.iter == it) & (data.n == n) &
+                                         (data.train_test == split))
+                            # constant added so that the scores are not too
+                            # close to 0, otherwise the plot in logscale is
+                            # difficult to read.
+                            best_r2 = data.loc[mask_data, 'r2'].max()
+                            data.loc[mask_data, 'r2'] = np.minimum(
+                                -1e-3, data.loc[mask_data, 'r2'] - best_r2)
 
             for j, n in enumerate(n_samples):
                 data_n = data.query('n == @n')
-
-                if data_type in ['probit_sm']:
-                    for it in data_n.iter.unique():
-                        ind = (data_n.iter == it) & (data_n.train_test == 'test')
-                        max_it = data_n.loc[ind, 'r2'].max()
-                        data_n.loc[data_n.iter == it, 'r2'] = (
-                            max_it - data_n.loc[data_n.iter == it, 'r2'])
-
                 is_legend = (i == 2) & (j == 0)
                 plot_one(row_axes[j], data_n, is_legend)
 

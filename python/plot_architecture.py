@@ -8,7 +8,8 @@ def plot_one(ax, data):
 
     ax.axhline(0, color='.8', lw=2)
 
-    palette = {'Neumann': 'C2', 'Neumann_res': 'C8', 'Neumann_analytic': 'C4'}
+    # palette = {'Neumann': 'C2', 'Neumann_res': 'C8', 'Neumann_analytic': 'C4'}
+    palette = {'NeuMiss': 'C2', 'NeuMiss_res': 'C8', 'NeuMiss_analytic': 'C4'}
 
     # Plot train
     sns.lineplot(
@@ -21,12 +22,12 @@ def plot_one(ax, data):
         data=data.query('train_test == "test"'), x='depth', palette=palette,
         y='r2', hue='method', ax=ax, estimator=np.median)
 
-    l = plt.legend()
-    l = plt.legend(l.legendHandles[1:],
-                   [h.get_label() for h in l.legendHandles[1:]], fontsize=9,
-                   handlelength=1, borderaxespad=.2)
+    ll = plt.legend()
+    ll = plt.legend(ll.legendHandles[1:],
+                    [h.get_label() for h in ll.legendHandles[1:]], fontsize=9,
+                    handlelength=1, borderaxespad=.2)
     # Add the legend, so that we can add another
-    ax.add_artist(l)
+    ax.add_artist(ll)
 
     # Set axes
     ax.set_xlabel('depth')
@@ -46,18 +47,22 @@ if __name__ == '__main__':
     # Separate Bayes rate from other methods performances
     br = scores.query('method == "Bayes_rate"')
     scores = scores.query('method != "Bayes_rate"')
-
-    methods = ['Neumann', 'Neumann_res', 'Neumann_analytic']
-    scores = scores.query('method in @methods')
-
     scores.train_test.fillna('test', inplace=True)
 
     # Adjust for the Bayes rate
     for it in scores.iter.unique():
-        br_it = br.loc[br.iter == it, 'r2']
-        br_it = float(br_it)
-        scores.loc[scores.iter == it, 'r2'] = (
-            scores.loc[scores.iter == it, 'r2'] - br_it)
+        for split in scores.train_test.unique():
+            mask_br = (br.iter == it) & (br.train_test == split)
+            br_val = br.loc[mask_br, 'r2']
+            br_val = float(br_val)
+            mask_data = (scores.iter == it) & (scores.train_test == split)
+            scores.loc[mask_data, 'r2'] = scores.loc[mask_data, 'r2'] - br_val
+
+    scores['method'] = scores['method'].replace({
+            'Neumann_res': 'NeuMiss_res',
+            'Neumann_analytic': 'NeuMiss_analytic',
+            'Neumann': 'NeuMiss'
+            })
 
     fig, ax = plt.subplots(1, 1, figsize=(3, 2.5))
     plot_one(ax, scores)

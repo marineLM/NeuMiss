@@ -16,7 +16,7 @@ args = parser.parse_args()
 
 n_iter = 20
 n_jobs = 40
-n_sizes = [2e4, 1e5]
+n_sizes = [1e4, 2e4, 1e5]
 n_sizes = [int(i) for i in n_sizes]
 n_test = int(1e4)
 n_val = int(1e4)
@@ -53,8 +53,6 @@ elif args.data_type == 'MAR_logistic':
     default_values = {'n_features': 10, 'missing_rate': 0.5,
                       'prop_latent': 0.5, 'snr': 10,
                       'masking': 'MAR_logistic', 'prop_for_masking': 0.1}
-
-
 
 # Define the list of parameters that should be tested and their range of values
 other_values = {'n_features': [20, 50]}
