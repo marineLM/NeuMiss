@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 
+plt.rcParams['pdf.fonttype'] = 42
+
 
 def plot_one(ax, data):
 

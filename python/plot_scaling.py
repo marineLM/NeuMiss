@@ -5,6 +5,8 @@ import seaborn as sns
 import matplotlib.lines as mlines
 import numpy as np
 
+plt.rcParams['pdf.fonttype'] = 42
+
 
 def plot_one(ax, data, is_legend=False):
 
@@ -26,8 +28,8 @@ def plot_one(ax, data, is_legend=False):
     if is_legend:
         ll = plt.legend()
         ll = plt.legend(
-             l.legendHandles[1:],
-             [h.get_label() for h in l.legendHandles[1:]], fontsize=9,
+             ll.legendHandles[1:],
+             [h.get_label() for h in ll.legendHandles[1:]], fontsize=9,
              handlelength=1, borderaxespad=.2, ncol=3, loc=(-.1, -.635),
              frameon=False
              )
@@ -46,7 +48,7 @@ def plot_one(ax, data, is_legend=False):
     ax.grid(True)
 
     # ax.set_xlim(0, 10)
-    # ax.set_ylim(-0.28, 0)
+    ax.set_ylim(-0.28, 0.01)
     ax.set_xlim(data['params_by_samples'].min(),
                 data['params_by_samples'].max())
     ax.set_xscale('log')
@@ -71,7 +73,7 @@ if __name__ == '__main__':
     plt.rcParams['ytick.major.size'] = 2
     plt.rcParams['xtick.major.size'] = 2
 
-    for data_type in ['MCAR', 'gaussian_sm', 'probit_sm', 'MAR']:
+    for data_type in ['MCAR', 'gaussian_sm', 'probit_sm', 'MAR_logistic']:
 
         scores = pd.read_csv('../results/' + data_type + '.csv', index_col=0)
         scores = scores.sort_values(by='n')
@@ -102,7 +104,7 @@ if __name__ == '__main__':
                 n_params_neumann(r.n_features, r.depth) / r.n
                 for r in scores.itertuples()]
         exp = np.log10(scores.n).astype(int)
-        factors = (np.round(scores.n / 10**exp).astype(int).apply(
+        factors = (np.round(scores.n / 10**exp)).astype(int).apply(
                    'n=${}\cdot 10'.format)
         exponents = exp.apply('^{}$'.format)
         dim = scores.n_features.astype(int).apply(', d={}'.format)
@@ -157,17 +159,15 @@ if __name__ == '__main__':
         colors = dict(zip(scores_test['experiment'].unique(),
                           sns.color_palette()))
         plt.scatter(scores_test['params_by_samples'], scores_test['r2'],
-                    #c=scores_test['experiment'].map(colors),
+                    # c=scores_test['experiment'].map(colors),
                     color='.6', s=3*(scores_test['depth'] + 1), ec='k',
                     linewidth=.5)
 
-        legend_points = [
-                        plt.scatter([], [],
-                              s=3*(i + 1), marker='o',linewidth=.5,
-                              edgecolor='k', facecolors='.6',
-                              label='%i' % int(i))
-                        for i in range(1, int(scores_test['depth'].max() + 1),
-                                       2)]
+        legend_points = [plt.scatter([], [], s=3*(i + 1), marker='o',
+                         linewidth=.5, edgecolor='k', facecolors='.6',
+                         label='%i' % int(i))
+                         for i in range(
+                             1, int(scores_test['depth'].max() + 1), 2)]
         plt.legend(handles=legend_points, scatterpoints=1,
                    title='NeuMiss\nnetwork\ndepth',
                    handlelength=1, handletextpad=.1,
@@ -177,6 +177,5 @@ if __name__ == '__main__':
         plt.tight_layout(pad=.02, rect=[0, .23, 1, 1])
         plt.savefig('../figures/scaling_{}.pdf'.format(data_type),
                     edgecolor='none', facecolor='none', dpi=100)
-
 
         plt.close()

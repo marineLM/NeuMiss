@@ -127,7 +127,7 @@ def run_one_iter(it, n_features):
             print('Neumann d={}, res={}'.format(d, res))
             est = Neumann_mlp(
                 depth=d, n_epochs=100, batch_size=10, lr=1e-2/n_features,
-                early_stopping=True, residual_connection=res, verbose=False)
+                early_stopping=False, residual_connection=res, verbose=False)
 
             est.fit(X_train, y_train, X_val=X_val, y_val=y_val)
 

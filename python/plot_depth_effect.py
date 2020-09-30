@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
 import seaborn as sns
 
+plt.rcParams['pdf.fonttype'] = 42
+
 
 def plot_one(ax, data):
 

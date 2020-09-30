@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 
+plt.rcParams['pdf.fonttype'] = 42
+
 
 def plot_one(ax, data, is_legend=False):
 
@@ -14,7 +16,7 @@ def plot_one(ax, data, is_legend=False):
     # Plot test
     sns.boxplot(
         data=data.query('train_test == "test"'), x='score',
-        palette={'EM': '.9', 'MLP': 'C1', 'Neumann': 'C2',
+        palette={'EM': '.9', 'MLP': 'C1', 'NeuMiss': 'C2',
                  'MICE + MLP': 'C3', 'MICE + LR': 'C3', },
         saturation=1,
         y='method', ax=ax)
@@ -35,8 +37,8 @@ if __name__ == '__main__':
     plt.rcParams['xtick.major.size'] = 2
 
     # Uncomment the option you want to choose
-    option = 'shared_scale'
-    # option = 'adapted_scale'
+    # option = 'shared_scale'
+    option = 'adapted_scale'
 
     for data_type in ['MCAR', 'MAR_logistic', 'gaussian_sm', 'probit_sm']:
 
