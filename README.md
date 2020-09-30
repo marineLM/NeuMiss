@@ -2,6 +2,8 @@ This repository contains the code to reproduce the experiments of the paper:
 
 __NeuMiss networks: differential programming for supervised learning with missing values.__
 
+https://arxiv.org/abs/2007.01627
+
 The file **NeuMiss.yml** indicates the packages required as well as the
 versions used in our experiments.
 
