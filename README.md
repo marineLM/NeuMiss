@@ -1,8 +1,9 @@
 This repository contains the code to reproduce the experiments of the paper:
 
-__NeuMiss networks: differential programming for supervised learning with missing values.__
+[NeuMiss networks: differential programming for supervised learning with missing values](https://proceedings.neurips.cc/paper/2020/file/42ae1544956fbe6e09242e6cd752444c-Paper.pdf)
 
-https://arxiv.org/abs/2007.01627
+
+**If you want to try NeuMiss, we advise you to look at the [NeuMiss_sota repository](https://github.com/marineLM/NeuMiss_sota), which provides an easy-to-use PyTorch module implemeting NeuMiss.**
 
 The file **NeuMiss.yml** indicates the packages required as well as the
 versions used in our experiments.
